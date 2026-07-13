@@ -10,6 +10,8 @@ VM (Ubuntu) 上で作成した運用スクリプト群。
 - disk_check.sh — ディスク使用率の定期記録（cron用）
 - heartbeat.sh — systemdサービス化の練習用常駐スクリプト
 - deploy.sh — ノートPCからVMへスクリプトを配布・実行するデプロイスクリプト
+## 手順書
+- runbook_oldDT_migration.md — 旧DTのUbuntu Server化 作業手順書（ロールバック・完了条件付き）
 
 ## 学んだこと
 
