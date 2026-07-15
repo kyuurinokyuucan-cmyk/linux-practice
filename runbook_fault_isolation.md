@@ -44,3 +44,22 @@
 - root causeを消してから症状(reset-failed)を消す。
 - unit変更後は daemon-reload。drop-inは .d/*.conf。
 - 使用中のポート/プロセスをいきなりkillしない。
+
+## 障害⑥ ディスク枯渇（ENOSPC / inode）
+現象: `No space left on device`
+- バイト枯渇: `df -h`(Use% 100%) → `du -h --max-depth=1 <path> | sort -rh` で犯人特定 → 削除/logrotate
+- inode枯渇: `df -h`は余裕なのに書けない → `df -i`(IUse% 100%) → 小ファイル大量生成 → 犯人dir特定して削除
+- 罠: 巨大ログをrmしても空かない → プロセスが握ってる。`lsof | grep deleted` → 該当サービスrestart
+- 根治: logrotate、Use%閾値の監視アラート
+
+## 障害⑦ メモリ枯渇 / OOM killer
+現象: プロセスが突然消える
+- 確認: `dmesg | grep -iE 'oom|out of memory|killed'`（journalctl -k が空でもdmesgに出る）
+- 読む: `Killed process PID (name) ... anon-rss:XXX`（rss=実物理使用がキー）
+- 注意: 殺された者≠原因。`ps aux --sort=-rss | head` で食ってた犯人を別途追う
+- 予兆監視: `free -h` / `ps aux --sort=-rss`
+- 防御: unitに `MemoryMax=`、重要サービスは `OOMScoreAdjust=-1000`
+- 教訓: ログは経路と窓を疑う（-k空でもdmesgで確認）
+
+## 集計ツール
+- `log_report.sh <access-log>`（総数/ステータス内訳/上位パス/上位IP/5xx件数）
