@@ -1,0 +1,46 @@
+# systemd サービス障害切り分け runbook
+
+## 型（順番厳守）
+1. 現象を確定（何がどう壊れ、再現するか）
+2. 状態を確定: `systemctl is-active <svc>` → active / failed / activating / inactive
+3. 観測→仮説→検証（推測でconfigを触る前に必ずログを読む）
+4. 直したら再現手順で確認
+
+## 最初の分岐（探す範囲が半分になる）
+- appログ(Traceback等)が出ている → コード / 設定値 / 権限 / 依存 を疑う
+- appログが無く `status=NNN/NAME` → unitのディレクティブ(User/WorkingDirectory/ExecStart)を疑う
+  - systemdはprogram実行前にお膳立て(User切替・chdir等)をする。そこで失敗するとappは走らずログも出ない。
+
+## 診断コマンド
+- 状態: `systemctl status <svc> --no-pager -l`
+- 詳細: `systemctl show <svc> -p Result,ExecMainStatus,NRestarts`
+- ログ(現在のインシデントに絞る): `journalctl -u <svc> --since "-3min" --no-pager`
+- ポートの握り主: `sudo ss -tlnp | grep :<port>`
+- 半自動: `./troubleshoot.sh <svc>`
+
+## 症状 → 原因 → 対処
+| 症状 | root cause | 対処 |
+|---|---|---|
+| PermissionError [Errno 13] | userがファイルに書けない | chown戻す → reset-failed → start |
+| ValueErrorでcrash-loop | config値が不正 | config直してから reset-failed → start |
+| Address already in use [Errno 98] | ポート使用中 | ss -tlnpで握り主確認。正当なら割込側を別ポートへ |
+| status=200/CHDIR | WorkingDirに入れない | dir作成 or unit修正 → daemon-reload |
+| status=217/USER | User=が存在しない | user作成 or unit修正 → daemon-reload |
+| repeated too quickly | StartLimit発火(既定10秒5回) | 原因直してから reset-failed |
+
+## exit status code（お膳立て失敗）
+| code | 意味 |
+|---|---|
+| 203/EXEC | binary実行不可(無い/実行ビット無し/shebang不正) |
+| 200/CHDIR | WorkingDirに入れない |
+| 217/USER | User=が存在しない |
+| 216/GROUP | Group=が存在しない |
+| 226/NAMESPACE | サンドボックス構築失敗 |
+
+`man systemd.exec` の Process Exit Codes 参照
+
+## 鉄則
+- 症状(failed/repeated too quickly)と本体(最初のError行)を分ける。原因は症状の数行〜数十行"上"。
+- root causeを消してから症状(reset-failed)を消す。
+- unit変更後は daemon-reload。drop-inは .d/*.conf。
+- 使用中のポート/プロセスをいきなりkillしない。
