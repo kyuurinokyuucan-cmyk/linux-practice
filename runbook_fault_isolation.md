@@ -63,3 +63,16 @@
 
 ## 集計ツール
 - `log_report.sh <access-log>`（総数/ステータス内訳/上位パス/上位IP/5xx件数）
+
+## 監視スタック（Prometheus + node_exporter + Grafana）
+- 収集: node_exporter(:9100 hostのCPU/mem/disk) / healthapp(:8080/metrics 自作) → Prometheus(:9090)がscrape・保存
+- 可視化: Grafana(:3000)がPrometheusをデータソースに描画
+- 主要PromQL:
+  - ディスク%: 100*(1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})
+  - メモリ%: 100*(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+  - CPU%: 100*(1 - avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[5m])))
+  - counterはrate()で勢いに変換、gaugeはそのまま
+- 対象死活: up==0 でサービス/ホスト停止を検知（最重要）
+- アラート: alert.rules.yml に expr/for/severity/annotations。Inactive→Pending(for待機)→Firing。配信はAlertmanager(別部品)
+- 検証: promtool check config / promtool check rules（nginx -t / sshd -t と同じ、反映前に検証）
+- 公開の鉄則: ufwは送信元を絞る、認証無しツールは最小公開 or nginx前段で保護
