@@ -39,3 +39,23 @@
 - コンテナを消すとデータも消える → volume / bind mount で永続化
 - ディスクの犯人は Docker のことが多い → `docker system df` → `prune`
 - exit code は 128+シグナル番号（137=SIGKILL, 143=SIGTERM）
+
+## 実測メモ（実機演習 2026-08-02）
+### Up なのに refused
+- 仕込み: `-p 8081:8080` だがコンテナ内は80番で待機
+- 決め手: `docker port` でマッピング確認 + `docker exec` で内側の待ち受け確認
+- 復旧: マッピングは変更不可 → `rm -f` して正しい `-p 8081:80` で作り直す
+
+### 起動してすぐ落ちる
+- `docker ps` には出ない → `-a` 必須
+- `Exited (1)` = アプリのエラー → `docker logs` に実体
+
+### 再起動ループ
+- `--restart=always` + 起動失敗 = `Restarting (1)`
+- `--tail` だと同じエラーの山 → `--since` で時間の窓に切る
+- 回数確認: `docker inspect -f '{{ .RestartCount }}' <n>`
+
+### メモリ制限で殺される
+- `Exited (137)` = 128 + 9 (SIGKILL)
+- 確定: `docker inspect -f '{{ .State.OOMKilled }}' <n>` が true
+- ホスト側の証拠: `dmesg` に cgroup OOM
