@@ -59,3 +59,26 @@
 - `Exited (137)` = 128 + 9 (SIGKILL)
 - 確定: `docker inspect -f '{{ .State.OOMKilled }}' <n>` が true
 - ホスト側の証拠: `dmesg` に cgroup OOM
+
+## コンテナ間ネットワーク
+### 名前解決の可否
+| ネットワーク | コンテナ名で引けるか |
+|---|---|
+| 既定の bridge | **引けない** |
+| ユーザー定義ネットワーク | 引ける（Docker内蔵DNS） |
+| Compose が自動作成するもの | 引ける（サービス名で） |
+
+### 症状から引く
+| 症状 | 一発目 | 判定 |
+|---|---|---|
+| コンテナ間で名前が引けない | `docker exec <n> getent hosts <相手>` | DNS層で落ちている |
+| 両方 Up なのに繋がらない | `docker inspect -f '{{ range $k,$v := .NetworkSettings.Networks }}{{ $k }} {{ end }}' <n>` | 所属ネットワーク不一致 |
+| 起動直後だけ繋がらない | `docker compose ps` の healthy 有無 | depends_on は順序のみ |
+
+### depends_on の誤解（systemd と同じ構造）
+- `depends_on` 単体 = After=（起動順序のみ。準備完了は保証しない）
+- `depends_on` + `condition: service_healthy` = 本当の依存（healthcheck 必須）
+
+### 複数ネットワーク構成
+共通ネットワークを1つでも共有していれば繋がる。
+3層構成の型: web→front / db→back / api→front,back
