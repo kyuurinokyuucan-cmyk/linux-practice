@@ -137,11 +137,9 @@ curl -I -m 5 http://192.168.11.200 # client から
 
 ## 原則
 
-- **想像で設定を触る前に、状態とログで事実を確認する**
-- **下の層から順に「どこまで正常か」を確定させる**
-- **エラーが無いことを正常の証拠にしない**（Condition skip / アラート0件）
-- **1回に1つだけ変える**
-- **同じ症状でも原因は違う。決め手のコマンドで割る**
+- **想像で設定を触る前に、状態とログで事実を確認する** - **下の層から順に「どこまで正常か」を確定させる** - 
+**エラーが無いことを正常の証拠にしない**（Condition skip / アラート0件） - **1回に1つだけ変える** - 
+**同じ症状でも原因は違う。決め手のコマンドで割る**
 
 ---
 
@@ -155,3 +153,20 @@ curl -I -m 5 http://192.168.11.200 # client から
 
 ## 演習環境
 `lab/break.sh`（障害注入・10種）→ 切り分け → `lab/fix.sh`（復旧・答え合わせ）
+
+
+
+
+ 障害注入ラボ 答え合わせ表（10種）
+#	仕込まれる障害	主症状	決め手コマンド	紛らわしい相手
+1	nginx 停止	curl → refused / status inactive	systemctl status nginx → nginx -t は通る	6
+2	ufw で 80 遮断	localhostは通る／他ホストから timed out	sudo ufw status numbered	1・6
+3	labtest を mask	inactive (dead)・start しても拒否	systemctl cat labtest → /dev/null を指す	7
+4	testdisk バイト枯渇	No space left on device	df -h でUse% 100 かつ df -i に空きあり	8・9
+5	yes ×2 でCPU張り付き	load高・レスポンス劣化	vmstat 1 の us が高い	10
+6	nginx 設定破損	curl → refused / 起動失敗	nginx -t が行番号付きエラー	1
+7	drop-in で不正な ExecStart	failed (Result: exit-code) / status=203/EXEC	systemctl cat labtest に drop-in が見える	3
+8	小ファイル大量で inode枯渇	No space left on device	df -h に空きがあるのに df -i が100%	4
+9	削除済み+fd保持	消したのに容量が戻らない	df と du の食い違い → lsof +L1	4
+10	メモリ食いプロセス	available減少・swap発生	vmstat 1 の si/so ＋ ps aux --sort=-rss	5
+
